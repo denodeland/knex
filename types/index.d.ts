@@ -2116,10 +2116,7 @@ export declare namespace Knex {
 
   interface RawBuilder<TRecord extends {} = any, TResult = any> {
     <TResult2 = TResult>(value: Value): Raw<TResult2>;
-    <TResult2 = TResult>(
-      sql: string,
-      binding: RawBinding
-    ): Raw<TResult2>;
+    <TResult2 = TResult>(sql: string, binding: RawBinding): Raw<TResult2>;
     <TResult2 = TResult>(
       sql: string,
       bindings: readonly RawBinding[] | ValueDict
