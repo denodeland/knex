@@ -93,8 +93,8 @@ function invoke() {
 
   // TODO add knexpath here eventually
   const modulePath =
-    resolveFrom.silent(cwd, 'knex') ||
-    findUpModulePath(cwd, 'knex') ||
+    resolveFrom.silent(cwd, '@denodeland/knex') ||
+    findUpModulePath(cwd, '@denodeland/knex') ||
     process.env.KNEX_PATH;
 
   const configPath =
