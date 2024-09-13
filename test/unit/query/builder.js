@@ -11626,4 +11626,107 @@ describe('QueryBuilder', () => {
       });
     });
   });
+
+  describe('Method WhereNullSafe cases', () => {
+    let mysql;
+
+    before(function () {
+      mysql = new MySQL_Client({ client: 'mysql' });
+    });
+
+    it('basic where null safe', function () {
+      const mysqlQb = mysql
+        .queryBuilder()
+        .select('*')
+        .from('users')
+        .whereNullSafe('id', 1);
+
+      const sql = mysqlQb.toSQL();
+      expect(sql.sql).to.equal('select * from `users` where `id` <=> ?');
+      expect(sql.bindings).to.deep.equal([1]);
+    });
+
+    it('where null safe with NULL value', function () {
+      const mysqlQb = mysql
+        .queryBuilder()
+        .select('*')
+        .from('users')
+        .whereNullSafe('email', null);
+
+      const sql = mysqlQb.toSQL();
+      expect(sql.sql).to.equal('select * from `users` where `email` <=> ?');
+      expect(sql.bindings).to.deep.equal([null]);
+    });
+
+    it('multiple where null safe conditions', function () {
+      const mysqlQb = mysql
+        .queryBuilder()
+        .select('*')
+        .from('users')
+        .whereNullSafe('id', 1)
+        .whereNullSafe('email', 'test@example.com');
+
+      const sql = mysqlQb.toSQL();
+      expect(sql.sql).to.equal(
+        'select * from `users` where `id` <=> ? and `email` <=> ?'
+      );
+      expect(sql.bindings).to.deep.equal([1, 'test@example.com']);
+    });
+
+    it('or where null safe', function () {
+      const mysqlQb = mysql
+        .queryBuilder()
+        .select('*')
+        .from('users')
+        .whereNullSafe('id', 1)
+        .orWhereNullSafe('email', null);
+
+      const sql = mysqlQb.toSQL();
+      expect(sql.sql).to.equal(
+        'select * from `users` where `id` <=> ? or `email` <=> ?'
+      );
+      expect(sql.bindings).to.deep.equal([1, null]);
+    });
+
+    it('where null safe with different data types', function () {
+      const mysqlQb = mysql
+        .queryBuilder()
+        .select('*')
+        .from('users')
+        .whereNullSafe('id', 1)
+        .whereNullSafe('name', 'John')
+        .whereNullSafe('active', true)
+        .whereNullSafe('created_at', new Date('2023-01-01'));
+
+      const sql = mysqlQb.toSQL();
+      expect(sql.sql).to.equal(
+        'select * from `users` where `id` <=> ? and `name` <=> ? and `active` <=> ? and `created_at` <=> ?'
+      );
+      expect(sql.bindings).to.have.lengthOf(4);
+      expect(sql.bindings[0]).to.equal(1);
+      expect(sql.bindings[1]).to.equal('John');
+      expect(sql.bindings[2]).to.equal(true);
+      expect(sql.bindings[3]).to.be.instanceOf(Date);
+    });
+
+    it('where null safe in a subquery', function () {
+      const subquery = mysql
+        .queryBuilder()
+        .select('id')
+        .from('roles')
+        .whereNullSafe('name', 'admin');
+
+      const mysqlQb = mysql
+        .queryBuilder()
+        .select('*')
+        .from('users')
+        .whereIn('role_id', subquery);
+
+      const sql = mysqlQb.toSQL();
+      expect(sql.sql).to.equal(
+        'select * from `users` where `role_id` in (select `id` from `roles` where `name` <=> ?)'
+      );
+      expect(sql.bindings).to.deep.equal(['admin']);
+    });
+  });
 });
