@@ -11626,4 +11626,233 @@ describe('QueryBuilder', () => {
       });
     });
   });
+
+  describe('Method WhereNullSafe cases', () => {
+    let mysql;
+
+    before(function () {
+      mysql = new MySQL_Client({ client: 'mysql' });
+    });
+
+    after(() => {
+      return mysql.destroy();
+    });
+
+    it('basic where null safe', function () {
+      const mysqlQb = mysql
+        .queryBuilder()
+        .select('*')
+        .from('users')
+        .whereNullSafe('id', 1);
+
+      const sql = mysqlQb.toSQL();
+      expect(sql.sql).to.equal('select * from `users` where `id` <=> ?');
+      expect(sql.bindings).to.deep.equal([1]);
+    });
+
+    it('where null safe with NULL value', function () {
+      const mysqlQb = mysql
+        .queryBuilder()
+        .select('*')
+        .from('users')
+        .whereNullSafe('email', null);
+
+      const sql = mysqlQb.toSQL();
+      expect(sql.sql).to.equal('select * from `users` where `email` <=> ?');
+      expect(sql.bindings).to.deep.equal([null]);
+    });
+
+    it('multiple where null safe conditions', function () {
+      const mysqlQb = mysql
+        .queryBuilder()
+        .select('*')
+        .from('users')
+        .whereNullSafe('id', 1)
+        .whereNullSafe('email', 'test@example.com');
+
+      const sql = mysqlQb.toSQL();
+      expect(sql.sql).to.equal(
+        'select * from `users` where `id` <=> ? and `email` <=> ?'
+      );
+      expect(sql.bindings).to.deep.equal([1, 'test@example.com']);
+    });
+
+    it('or where null safe', function () {
+      const mysqlQb = mysql
+        .queryBuilder()
+        .select('*')
+        .from('users')
+        .whereNullSafe('id', 1)
+        .orWhereNullSafe('email', null);
+
+      const sql = mysqlQb.toSQL();
+      expect(sql.sql).to.equal(
+        'select * from `users` where `id` <=> ? or `email` <=> ?'
+      );
+      expect(sql.bindings).to.deep.equal([1, null]);
+    });
+
+    it('where null safe with different data types', function () {
+      const mysqlQb = mysql
+        .queryBuilder()
+        .select('*')
+        .from('users')
+        .whereNullSafe('id', 1)
+        .whereNullSafe('name', 'John')
+        .whereNullSafe('active', true)
+        .whereNullSafe('created_at', new Date('2023-01-01'));
+
+      const sql = mysqlQb.toSQL();
+      expect(sql.sql).to.equal(
+        'select * from `users` where `id` <=> ? and `name` <=> ? and `active` <=> ? and `created_at` <=> ?'
+      );
+      expect(sql.bindings).to.have.lengthOf(4);
+      expect(sql.bindings[0]).to.equal(1);
+      expect(sql.bindings[1]).to.equal('John');
+      expect(sql.bindings[2]).to.equal(true);
+      expect(sql.bindings[3]).to.be.instanceOf(Date);
+    });
+
+    it('where null safe in a subquery', function () {
+      const subquery = mysql
+        .queryBuilder()
+        .select('id')
+        .from('roles')
+        .whereNullSafe('name', 'admin');
+
+      const mysqlQb = mysql
+        .queryBuilder()
+        .select('*')
+        .from('users')
+        .whereIn('role_id', subquery);
+
+      const sql = mysqlQb.toSQL();
+      expect(sql.sql).to.equal(
+        'select * from `users` where `role_id` in (select `id` from `roles` where `name` <=> ?)'
+      );
+      expect(sql.bindings).to.deep.equal(['admin']);
+    });
+
+    it('should handle <=> operator in where clause', function () {
+      let mysqlQb = mysql
+        .queryBuilder()
+        .select('*')
+        .from('users')
+        .where('name', '<=>', 'John');
+
+      let sql = mysqlQb.toSQL();
+      expect(sql.sql).to.equal('select * from `users` where `name` <=> ?');
+      expect(sql.bindings).to.deep.equal(['John']);
+
+      mysqlQb = mysql
+        .queryBuilder()
+        .select('*')
+        .from('users')
+        .where('email', '<=>', null);
+
+      sql = mysqlQb.toSQL();
+      expect(sql.sql).to.equal('select * from `users` where `email` <=> ?');
+      expect(sql.bindings).to.deep.equal([null]);
+
+      mysqlQb = mysql
+        .queryBuilder()
+        .select('*')
+        .from('users')
+        .where('id', '>', 1)
+        .where('name', '<=>', 'John')
+        .where('email', '<=>', null);
+
+      sql = mysqlQb.toSQL();
+      expect(sql.sql).to.equal(
+        'select * from `users` where `id` > ? and `name` <=> ? and `email` <=> ?'
+      );
+      expect(sql.bindings).to.deep.equal([1, 'John', null]);
+    });
+
+    it('should handle <=> operator in orWhere clause', function () {
+      const mysqlQb = mysql
+        .queryBuilder()
+        .select('*')
+        .from('users')
+        .where('id', 1)
+        .orWhere('name', '<=>', 'John')
+        .orWhere('email', '<=>', null);
+
+      const sql = mysqlQb.toSQL();
+      expect(sql.sql).to.equal(
+        'select * from `users` where `id` = ? or `name` <=> ? or `email` <=> ?'
+      );
+      expect(sql.bindings).to.deep.equal([1, 'John', null]);
+    });
+
+    it('should handle <=> operator in a subquery', function () {
+      const subquery = mysql
+        .queryBuilder()
+        .select('id')
+        .from('roles')
+        .where('name', '<=>', 'admin');
+
+      const mysqlQb = mysql
+        .queryBuilder()
+        .select('*')
+        .from('users')
+        .whereIn('role_id', subquery);
+
+      const sql = mysqlQb.toSQL();
+      expect(sql.sql).to.equal(
+        'select * from `users` where `role_id` in (select `id` from `roles` where `name` <=> ?)'
+      );
+      expect(sql.bindings).to.deep.equal(['admin']);
+    });
+
+    it('should handle <=> operator in whereNot clause', function () {
+      let mysqlQb = mysql
+        .queryBuilder()
+        .select('*')
+        .from('users')
+        .whereNot('name', '<=>', 'John');
+
+      let sql = mysqlQb.toSQL();
+      expect(sql.sql).to.equal(
+        'select * from `users` where NOT (`name` <=> ?)'
+      );
+      expect(sql.bindings).to.deep.equal(['John']);
+
+      mysqlQb = mysql
+        .queryBuilder()
+        .select('*')
+        .from('users')
+        .whereNot('email', '<=>', null);
+
+      sql = mysqlQb.toSQL();
+      expect(sql.sql).to.equal(
+        'select * from `users` where NOT (`email` <=> ?)'
+      );
+      expect(sql.bindings).to.deep.equal([null]);
+
+      mysqlQb = mysql
+        .queryBuilder()
+        .select('*')
+        .from('users')
+        .where('id', '>', 1)
+        .whereNot('name', '<=>', 'John')
+        .whereNot('email', '<=>', null);
+
+      sql = mysqlQb.toSQL();
+      expect(sql.sql).to.equal(
+        'select * from `users` where `id` > ? and NOT (`name` <=> ?) and NOT (`email` <=> ?)'
+      );
+      expect(sql.bindings).to.deep.equal([1, 'John', null]);
+
+      mysqlQb = mysql
+        .queryBuilder()
+        .select('*')
+        .from('users')
+        .whereNot('status', 'active');
+
+      sql = mysqlQb.toSQL();
+      expect(sql.sql).to.equal('select * from `users` where not `status` = ?');
+      expect(sql.bindings).to.deep.equal(['active']);
+    });
+  });
 });
